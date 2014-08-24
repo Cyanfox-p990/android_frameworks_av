@@ -1,3 +1,22 @@
+#
+# This file was modified by Dolby Laboratories, Inc. The portions of the
+# code that are surrounded by "DOLBY..." are copyrighted and
+# licensed separately, as follows:
+#
+#  (C) 2012-2013 Dolby Laboratories, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -14,6 +33,7 @@ LOCAL_SRC_FILES:=                         \
         AwesomePlayer.cpp                 \
         CameraSource.cpp                  \
         CameraSourceTimeLapse.cpp         \
+        ClockEstimator.cpp                \
         DataSource.cpp                    \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
@@ -58,6 +78,7 @@ LOCAL_SRC_FILES:=                         \
         avc_utils.cpp                     \
         mp4/FragmentedMP4Parser.cpp       \
         mp4/TrackFragment.cpp             \
+        APE.cpp                           \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
@@ -98,12 +119,16 @@ ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
         ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
             LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
         endif
+        LOCAL_SHARED_LIBRARIES += libstagefright_mp3dec
     endif
 endif
 
 ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
 LOCAL_C_INCLUDES += \
         $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
+ifneq ($(TARGET_QCOM_MEDIA_VARIANT),caf-new)
+    LOCAL_CFLAGS += -DLEGACY_MEDIA
+endif
 else
 LOCAL_C_INCLUDES += \
         $(TOP)/hardware/qcom/media/mm-core/inc
@@ -135,7 +160,6 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
-        libstagefright_mp3dec \
         libstagefright_aacenc \
         libstagefright_matroska \
         libstagefright_timedtext \
@@ -150,16 +174,19 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_SRC_FILES += ExtendedCodec.cpp ExtendedExtractor.cpp ExtendedUtils.cpp
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
-       LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
-       LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedWriter.cpp
+    LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
+    LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedPrefetchSource.cpp ExtendedWriter.cpp
+    LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+    LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
-       ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
-           LOCAL_C_INCLUDES += \
-               $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
-       else
-           LOCAL_C_INCLUDES += \
-               $(TOP)/hardware/qcom/media/mm-core/inc
-       endif
+    ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
+    else
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media/mm-core/inc
+    endif
+
 endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 LOCAL_SRC_FILES += \
@@ -179,13 +206,13 @@ LOCAL_CFLAGS += -Wno-multichar
 
 ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
 LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+endif
 
 # Include native color format header path
 LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung/exynos4/hal/include \
 	$(TOP)/hardware/samsung/exynos4/include
 
-endif
 
 ifeq ($(BOARD_USE_TI_DUCATI_H264_PROFILE), true)
 LOCAL_CFLAGS += -DUSE_TI_DUCATI_H264_PROFILE
@@ -197,6 +224,7 @@ endif #DOLBY_UDC
 ifdef DOLBY_UDC_MULTICHANNEL
   LOCAL_CFLAGS += -DDOLBY_UDC_MULTICHANNEL
 endif #DOLBY_UDC_MULTICHANNEL
+
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional

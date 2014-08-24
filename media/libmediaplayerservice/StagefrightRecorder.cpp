@@ -69,6 +69,7 @@
 
 #include "ARTPWriter.h"
 #include <cutils/properties.h>
+#include "ExtendedUtils.h"
 
 #define RES_720P (720*1280)
 #define DUR_30MIN (30*60*1000*1000)
@@ -817,14 +818,20 @@ status_t StagefrightRecorder::start() {
     CHECK_GE(mOutputFd, 0);
 
     if (mRecPaused == true) {
-        status_t err = setSourcePause(false);
+        status_t err = mWriter->start();
+        if (err != OK) {
+            ALOGE("Writer start in StagefrightRecorder pause failed");
+            return err;
+        }
+
+        err = setSourcePause(false);
         if (err != OK) {
             ALOGE("Source start after pause failed");
             return err;
         }
 
         mRecPaused = false;
-        return mWriter->start();
+        return OK;
     }
     // Get UID here for permission checking
     mClientUid = IPCThreadState::self()->getCallingUid();
@@ -1017,6 +1024,8 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     if (audioEncoder == NULL) {
         ALOGD("No encoder is needed, use the AudioSource directly as the MediaSource for LPCM format");
         audioEncoder = audioSource;
+    } else {
+        mAudioEncoderOMX = audioEncoder;  //record the audio OMX-based encoder
     }
     if (mAudioSourceNode != NULL) {
         mAudioSourceNode.clear();
@@ -1631,8 +1640,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
 
 #ifdef QCOM_HARDWARE
-    status_t retVal = ExtendedUtils::HFR::reCalculateFileDuration(
-            meta, enc_meta, mMaxFileDurationUs, mFrameRate, mVideoEncoder);
+    status_t retVal = ExtendedUtils::HFR::initializeHFR(
+            meta, enc_meta, mMaxFileDurationUs, mVideoEncoder);
     if(retVal != OK) {
         return retVal;
     }
@@ -1661,6 +1670,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     if (mCaptureTimeLapse) {
         encoder_flags |= OMXCodec::kOnlySubmitOneInputBufferAtOneTime;
     }
+    encoder_flags |= ExtendedUtils::getEncoderTypeFlags();
 
     sp<MediaSource> encoder = OMXCodec::Create(
             client.interface(), enc_meta,
@@ -1864,12 +1874,6 @@ status_t StagefrightRecorder::stop() {
     }
 
     if (mRecPaused) {
-        err = mWriter->start();
-        if (err != OK) {
-            ALOGE("Writer start in StagefrightRecorder stop failed");
-            return err;
-        }
-
         err = setSourcePause(false);
         if (err != OK) {
             ALOGE("Source start after pause in StagefrightRecorder stop failed");
